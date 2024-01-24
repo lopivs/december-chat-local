@@ -11,11 +11,9 @@ public class Server {
     private List<ClientHandler> clients;
     private UserService userService;
     private UserRole userRole;
-
     public UserService getUserService() {
         return userService;
     }
-
     public UserRole getUserRole() {
         return userRole;
     }
@@ -28,8 +26,9 @@ public class Server {
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.printf("Сервер запущен на порту %d. Ожидание подключения клиентов\n", port);
-            userService = new InMemoryUserService();
-            userRole = new InMemoryUserRole();
+            DbUserService dbUserService = new DbUserService();
+            userService = dbUserService;
+            userRole = dbUserService;
             System.out.println("Запущен сервис для работы с пользователями");
             while (true) {
                 Socket socket = serverSocket.accept();
