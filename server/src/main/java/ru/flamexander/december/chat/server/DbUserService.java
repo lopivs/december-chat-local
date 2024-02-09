@@ -2,8 +2,6 @@ package ru.flamexander.december.chat.server;
 
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 
 public class DbUserService implements UserService, UserRole, AutoCloseable {
@@ -28,21 +26,20 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
     private static final String DB_LOGIN = "postgres";
     private static final String DB_PASSWORD = "postgres";
     private static Connection connect;
+    private static Statement statement;
+    private static PreparedStatement pStatement;
 
-    private void dbConnect() {
-        try {
-            connect = DriverManager.getConnection(DB_URL, DB_LOGIN, DB_PASSWORD);
-            System.out.println("Подключение к БД прошло успешно!");
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+    private void connect() throws SQLException {
+        connect = DriverManager.getConnection(DB_URL, DB_LOGIN, DB_PASSWORD);
+        statement = connect.createStatement();
+        System.out.println("Подключение к БД прошло успешно!");
     }
 
     public DbUserService() {
-        dbConnect();
+
         try {
+            connect();
             List<DbUserService.User> users = new ArrayList<>();
-            Statement statement = connect.createStatement();
             ResultSet rs = statement.executeQuery("Select login, user_name, password, role_id, isblocked from users");
             while (rs.next()) {
                 users.add(new User(rs.getString("login"),
@@ -59,7 +56,8 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
     @Override
     public String getUsernameByLoginAndPassword(String login, String password) {
         List<DbUserService.User> users = new ArrayList<>();
-        try (PreparedStatement pStatement = connect.prepareStatement("Select user_name from users where login = ? and password = ?")) {
+        try {
+            pStatement = connect.prepareStatement("Select user_name from users where login = ? and password = ?");
             pStatement.setString(1, login);
             pStatement.setString(2, password);
             System.out.println("Попытка авторизации " + login + " " + password);
@@ -77,8 +75,9 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public void createNewUser(String login, String password, String username) {
-        try (PreparedStatement pStatement = connect.prepareStatement(
-                "INSERT INTO users(login, user_name, password, role_id, isblocked) VALUES(?, ?, ?, ?, ?) ")) {
+        try {
+            pStatement = connect.prepareStatement(
+                    "INSERT INTO users(login, user_name, password, role_id, isblocked) VALUES(?, ?, ?, ?, ?) ");
             connect.setAutoCommit(true);
             pStatement.setString(1, login);
             pStatement.setString(2, username);
@@ -93,7 +92,8 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public boolean isLoginAlreadyExist(String login) {
-        try (PreparedStatement pStatement = connect.prepareStatement("Select 1 from users where login = ?")) {
+        try {
+            pStatement = connect.prepareStatement("Select 1 from users where login = ?");
             pStatement.setString(1, login);
             try (ResultSet rs = pStatement.executeQuery()) {
                 while (rs.next()) {
@@ -108,7 +108,8 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public boolean isUsernameAlreadyExist(String username) {
-        try (PreparedStatement pStatement = connect.prepareStatement("Select 1 from users where user_name = ?")) {
+        try {
+            pStatement = connect.prepareStatement("Select 1 from users where user_name = ?");
             pStatement.setString(1, username);
             try (ResultSet rs = pStatement.executeQuery()) {
                 while (rs.next()) {
@@ -123,7 +124,8 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public String getRoleByUserName(String username) {// пришлось оставить строку т.к. до этого описал метод со строкой в интерфейсе и заюзал, лень переписывать
-        try (PreparedStatement pStatement = connect.prepareStatement("Select role_name from users u, acs_role r where user_name = ? and u.role_id = r.id")) {
+        try {
+            pStatement = connect.prepareStatement("Select role_name from users u, acs_role r where user_name = ? and u.role_id = r.id");
             pStatement.setString(1, username);
             try (ResultSet rs = pStatement.executeQuery()) {
                 while (rs.next()) {
@@ -138,8 +140,8 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public void setUserBlock(String username) {
-        try (PreparedStatement pStatement = connect.prepareStatement(
-                "update users set isBlocked = true where user_name = ?")) {
+        try {
+            pStatement = connect.prepareStatement("update users set isBlocked = true where user_name = ?");
             connect.setAutoCommit(true);
             pStatement.setString(1, username);
             pStatement.executeUpdate();
@@ -149,8 +151,7 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
     }
 
     public void setUserUnblock(String username) {
-        try (PreparedStatement pStatement = connect.prepareStatement(
-                "update users set isBlocked = false where user_name = ?")) {
+        try (PreparedStatement pStatement = connect.prepareStatement("update users set isBlocked = false where user_name = ?")) {
             connect.setAutoCommit(true);
             pStatement.setString(1, username);
             pStatement.executeUpdate();
@@ -162,8 +163,9 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
     @Override
     public boolean getAccessByRoleNameAndAccessName(String role, String access) {
         System.out.println("Запрос доступа " + access + " для роли " + role);
-        try (PreparedStatement pStatement = connect.prepareStatement(
-                "select true from acs_role r, link_role_acc_list l, acc_list a where r.role_name = ? and r.id = l.role_id and l.access_id = a.id and a.access_name = ?")) {
+        try {
+            pStatement = connect.prepareStatement("select true from acs_role r, link_role_acc_list l, acc_list a " +
+                    "where r.role_name = ? and  r.id = l.role_id and l.access_id = a.id and a.access_name = ?");
             pStatement.setString(1, role);
             pStatement.setString(2, access);
             try (ResultSet rs = pStatement.executeQuery()) {
@@ -179,8 +181,9 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public void addRole(String role) {
-        try (PreparedStatement pStatement = connect.prepareStatement(
-                "INSERT INTO acs_role(role_name) VALUES(?) ")) {
+        try {
+            pStatement = connect.prepareStatement(
+                    "INSERT INTO acs_role(role_name) VALUES(?) ");
             connect.setAutoCommit(true);
             pStatement.setString(1, role);
             pStatement.executeUpdate();
@@ -196,6 +199,24 @@ public class DbUserService implements UserService, UserRole, AutoCloseable {
 
     @Override
     public void close() {
+        disconnect();
+    }
+
+    public void disconnect() {
+        try {
+            if (pStatement != null) {
+                pStatement.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        try {
+            if (statement != null) {
+                statement.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         try {
             if (connect != null) {
                 connect.close();
